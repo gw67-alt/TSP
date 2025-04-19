@@ -1,162 +1,35 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import math
-from scipy.special import factorial
 import time
 import random
+import math
 from itertools import permutations
-import heapq
 
-# Set up the figure with consistent styling
-plt.style.use('seaborn-v0_8-whitegrid')
-plt.rcParams['figure.figsize'] = [14, 10]
-plt.rcParams['font.size'] = 12
-
-def calculate_tsp_entropy(n, method="brute_force"):
-    """
-    Calculate entropy for TSP with n cities
-    
-    Parameters:
-    - n: number of cities
-    - method: "brute_force" or optimized algorithm name
-    
-    Returns:
-    - entropy value
-    """
-    if method == "brute_force":
-        # Brute force entropy is approximately log(n!)
-        if n <= 20:
-            return np.log(math.factorial(n-1))
-        else:
-            # Use Stirling's approximation for large n
-            return (n-1) * np.log(n-1) - (n-1)
-    elif method == "nearest_neighbor":
-        return np.log(n * n)  # O(n²) complexity
-    elif method == "dynamic_programming":
-        return np.log(n * 2**n)  # O(n * 2^n) complexity
-    elif method == "branch_and_bound":
-        # Varies based on heuristics, but typically better than brute force
-        return np.log(n**2 * 2**(n/2))
-    elif method == "genetic_algorithm":
-        # Depends on parameters, but generally better than brute force
-        return np.log(n**2 * np.log(n))
-    else:  # Default for general optimization
-        return np.log(n**2)
-
-def estimate_cities_for_time(target_time, method="brute_force", base_time=1e-6):
-    """
-    Estimate how many cities can be solved within a target computation time
-    
-    Parameters:
-    - target_time: target computation time in seconds
-    - method: algorithm method
-    - base_time: base computation time per operation
-    
-    Returns:
-    - estimated number of cities
-    """
-    if method == "brute_force":
-        # Solve for n where base_time * (n-1)! ≈ target_time
-        n = 4  # Start with small number
-        while base_time * math.factorial(n-1) < target_time and n < 20:
-            n += 1
-        return n
-    
-    elif method == "nearest_neighbor":
-        # O(n²) complexity
-        n = int(np.sqrt(target_time / base_time))
-        return min(n, 1000)  # Cap at a reasonable number
-    
-    elif method == "dynamic_programming":
-        # O(n * 2^n) complexity
-        n = 4
-        while base_time * n * (2**n) < target_time and n < 30:
-            n += 1
-        return n
-    
-    elif method == "branch_and_bound":
-        # Approximate as O(n² * 2^(n/2))
-        n = 4
-        while base_time * (n**2) * (2**(n/2)) < target_time and n < 50:
-            n += 1
-        return n
-    
-    elif method == "genetic_algorithm":
-        # Approximate as O(n² * log(n))
-        n = int((target_time / base_time)**(1/2.1))  # Slightly more than square root
-        return min(n, 10000)  # Cap at a reasonable number
-    
-    else:
-        # Default approximation
-        n = int(np.sqrt(target_time / base_time))
-        return min(n, 1000)
-
+# TSP Core Functions
 def generate_random_cities(n, max_coord=100):
     """Generate n random cities in 2D space"""
     return [(random.uniform(0, max_coord), random.uniform(0, max_coord)) for _ in range(n)]
 
-def distance(city1, city2):
+def calculate_distance(city1, city2):
     """Calculate Euclidean distance between two cities"""
-    return np.sqrt((city1[0] - city2[0])**2 + (city1[1] - city2[1])**2)
+    return math.sqrt((city1[0] - city2[0])**2 + (city1[1] - city2[1])**2)
 
 def total_distance(route, cities):
-    """Calculate total distance of a route"""
-    return sum(distance(cities[route[i]], cities[route[i+1]]) for i in range(len(route)-1)) + distance(cities[route[-1]], cities[route[0]])
+    """Calculate total distance of a route, including return to start"""
+    return sum(calculate_distance(cities[route[i]], cities[route[i+1]]) for i in range(len(route)-1)) + calculate_distance(cities[route[-1]], cities[route[0]])
 
-def brute_force_tsp(cities, time_limit=float('inf')):
-    """Solve TSP using brute force approach with time limit"""
-    n = len(cities)
-    if n > 11:  # Practical limit for brute force
-        raise ValueError("Too many cities for brute force approach")
-    
-    start_time = time.time()
-    best_distance = float('inf')
-    best_route = None
-    operations = 0
-    paths_explored = 0
-    
-    # Fix first city (0) and permute the rest
-    for perm in permutations(range(1, n)):
-        if time.time() - start_time > time_limit:
-            break
-            
-        route = (0,) + perm
-        dist = total_distance(route, cities)
-        operations += n  # Approximate operations for distance calculation
-        paths_explored += 1
-        
-        if dist < best_distance:
-            best_distance = dist
-            best_route = route
-    
-    end_time = time.time()
-    computation_time = end_time - start_time
-    
-    return {
-        "route": best_route,
-        "distance": best_distance,
-        "time": computation_time,
-        "operations": operations,
-        "paths_explored": paths_explored,
-        "entropy": np.log(paths_explored) if paths_explored > 0 else 0,
-        "complete": paths_explored == math.factorial(n-1)
-    }
-
+# TSP Algorithms
 def nearest_neighbor_tsp(cities, time_limit=float('inf')):
-    """Solve TSP using nearest neighbor heuristic with time limit"""
+    """Solve TSP using nearest neighbor heuristic"""
     n = len(cities)
     start_time = time.time()
     
-    # Start from the first city
     current_city = 0
     route = [current_city]
     unvisited = set(range(1, n))
-    operations = 0
     
     while unvisited and (time.time() - start_time <= time_limit):
-        next_city = min(unvisited, key=lambda city: distance(cities[current_city], cities[city]))
-        operations += len(unvisited)  # Count comparisons
-        
+        next_city = min(unvisited, key=lambda city: calculate_distance(cities[current_city], cities[city]))
         route.append(next_city)
         unvisited.remove(next_city)
         current_city = next_city
@@ -165,42 +38,36 @@ def nearest_neighbor_tsp(cities, time_limit=float('inf')):
     if unvisited:
         route.extend(unvisited)
     
-    total_dist = total_distance(route, cities)
-    end_time = time.time()
-    computation_time = end_time - start_time
-    
     return {
         "route": route,
-        "distance": total_dist,
-        "time": computation_time,
-        "operations": operations,
-        "entropy": np.log(operations) if operations > 0 else 0,
-        "complete": len(unvisited) == 0
+        "distance": total_distance(route, cities),
+        "time": time.time() - start_time,
+        "algorithm": "Nearest Neighbor"
     }
 
-def two_opt_tsp(cities, time_limit=float('inf')):
-    """Solve TSP using 2-opt improvement heuristic with time limit"""
+def two_opt_tsp(cities, time_limit=float('inf'), start_route=None):
+    """Solve TSP using 2-opt improvement heuristic"""
     n = len(cities)
     start_time = time.time()
     
-    # Start with a random route
-    route = list(range(n))
-    random.shuffle(route)
+    # Start with provided route or a random route
+    if start_route:
+        route = start_route.copy()
+    else:
+        route = list(range(n))
+        random.shuffle(route)
+        
     best_distance = total_distance(route, cities)
-    operations = 0
-    improvements = 0
     
     improved = True
     while improved and (time.time() - start_time <= time_limit):
         improved = False
         for i in range(1, n-1):
             for j in range(i+1, n):
-                operations += 1
-                
                 if time.time() - start_time > time_limit:
                     break
-                    
-                # Try swapping the order of cities between i and j
+                
+                # Try 2-opt swap
                 new_route = route[:i] + route[i:j+1][::-1] + route[j+1:]
                 new_distance = total_distance(new_route, cities)
                 
@@ -208,390 +75,353 @@ def two_opt_tsp(cities, time_limit=float('inf')):
                     route = new_route
                     best_distance = new_distance
                     improved = True
-                    improvements += 1
                     break
             
             if improved or time.time() - start_time > time_limit:
                 break
     
-    end_time = time.time()
-    computation_time = end_time - start_time
-    
     return {
         "route": route,
         "distance": best_distance,
-        "time": computation_time,
-        "operations": operations,
-        "improvements": improvements,
-        "entropy": np.log(operations) if operations > 0 else 0,
-        "complete": not improved  # Complete if no more improvements possible
+        "time": time.time() - start_time,
+        "algorithm": "Two-Opt"
     }
 
-def simulated_annealing_tsp(cities, time_limit=float('inf')):
-    """Solve TSP using simulated annealing with time limit"""
-    n = len(cities)
+def nn_plus_two_opt(cities, time_limit=float('inf')):
+    """Hybrid approach: Start with Nearest Neighbor then improve with 2-opt"""
     start_time = time.time()
     
-    # Parameters
-    initial_temp = 100.0
-    final_temp = 0.1
-    alpha = 0.995  # Cooling rate
+    # Allocate 1/3 of time for NN
+    nn_time_limit = time_limit / 3 if not math.isinf(time_limit) else float('inf')
+    nn_result = nearest_neighbor_tsp(cities, time_limit=nn_time_limit)
     
-    # Start with a random route
-    current_route = list(range(n))
-    random.shuffle(current_route)
-    current_distance = total_distance(current_route, cities)
-    best_route = current_route.copy()
-    best_distance = current_distance
+    # Calculate remaining time for 2-opt
+    elapsed = time.time() - start_time
+    remaining_time = max(0.001, time_limit - elapsed) if not math.isinf(time_limit) else float('inf')
     
-    temp = initial_temp
-    operations = 0
-    iterations = 0
-    accepted_moves = 0
+    # Use 2-opt to improve NN result
+    two_opt_result = two_opt_tsp(cities, time_limit=remaining_time, start_route=nn_result["route"])
     
-    while temp > final_temp and (time.time() - start_time <= time_limit):
-        iterations += 1
+    return {
+        "route": two_opt_result["route"],
+        "distance": two_opt_result["distance"],
+        "time": time.time() - start_time,
+        "algorithm": "NN + Two-Opt"
+    }
+
+def brute_force_tsp(cities, time_limit=float('inf')):
+    """Solve TSP using brute force approach"""
+    n = len(cities)
+    if n > 11:  # Practical limit for brute force
+        raise ValueError("Too many cities for brute force approach")
         
-        # Select two random positions
-        i, j = sorted(random.sample(range(n), 2))
-        
-        # Create new solution by swapping two cities
-        new_route = current_route.copy()
-        new_route[i:j+1] = reversed(current_route[i:j+1])
-        
-        # Calculate new distance
-        new_distance = total_distance(new_route, cities)
-        operations += 1
-        
-        # Decide whether to accept the new solution
-        if new_distance < current_distance:
-            current_route = new_route
-            current_distance = new_distance
-            accepted_moves += 1
+    start_time = time.time()
+    best_distance = float('inf')
+    best_route = None
+    
+    # Fix first city (0) and permute the rest
+    for perm in permutations(range(1, n)):
+        if time.time() - start_time > time_limit:
+            break
             
-            if new_distance < best_distance:
-                best_route = new_route.copy()
-                best_distance = new_distance
-        else:
-            # Accept worse solution with a probability that decreases with temperature
-            p = np.exp((current_distance - new_distance) / temp)
-            if random.random() < p:
-                current_route = new_route
-                current_distance = new_distance
-                accepted_moves += 1
+        route = [0] + list(perm)
+        dist = total_distance(route, cities)
         
-        # Cool down
-        temp *= alpha
-    
-    end_time = time.time()
-    computation_time = end_time - start_time
+        if dist < best_distance:
+            best_distance = dist
+            best_route = route
     
     return {
         "route": best_route,
         "distance": best_distance,
-        "time": computation_time,
-        "operations": operations,
-        "iterations": iterations,
-        "accepted_moves": accepted_moves,
-        "entropy": np.log(operations) if operations > 0 else 0,
-        "complete": temp <= final_temp
+        "time": time.time() - start_time,
+        "algorithm": "Brute Force"
     }
 
-def analyze_by_computation_time():
-    """Analyze TSP algorithms with fixed computation time budgets"""
-    # Define computation time budgets to test
-    time_budgets = [0.001, 0.01, 0.1, 1.0, 5.0, 10.0]
-    
-    # Algorithms to test
-    algorithms = [
-        {"name": "Brute Force", "func": brute_force_tsp, "color": "#ff6b6b"},
-        {"name": "Nearest Neighbor", "func": nearest_neighbor_tsp, "color": "#1dd1a1"},
-        {"name": "2-Opt", "func": two_opt_tsp, "color": "#5352ed"},
-        {"name": "Simulated Annealing", "func": simulated_annealing_tsp, "color": "#feca57"}
-    ]
-    
-    results = []
-    
-    for time_budget in time_budgets:
-        print(f"\nAnalyzing with time budget: {time_budget} seconds")
-        budget_results = {"time_budget": time_budget, "algorithms": []}
-        
-        for algorithm in algorithms:
-            algorithm_name = algorithm["name"]
-            print(f"  Testing {algorithm_name}...")
-            
-            # Estimate appropriate problem size for this time budget
-            if algorithm_name == "Brute Force":
-                estimated_n = estimate_cities_for_time(time_budget, "brute_force")
-            elif algorithm_name == "Nearest Neighbor":
-                estimated_n = estimate_cities_for_time(time_budget, "nearest_neighbor")
-            elif algorithm_name == "2-Opt":
-                estimated_n = min(100, estimate_cities_for_time(time_budget, "nearest_neighbor"))
-            elif algorithm_name == "Simulated Annealing":
-                estimated_n = min(1000, estimate_cities_for_time(time_budget, "genetic_algorithm"))
-            else:
-                estimated_n = 20
-            
-            try:
-                cities = generate_random_cities(estimated_n)
-                result = algorithm["func"](cities, time_limit=time_budget)
-                
-                # Calculate theoretical entropy
-                theoretical_entropy = calculate_tsp_entropy(
-                    estimated_n, 
-                    "brute_force" if algorithm_name == "Brute Force" else algorithm_name.lower().replace("-", "_").replace(" ", "_")
-                )
-                
-                # Calculate solution quality compared to estimated optimal
-                solution_quality = 1.0  # Base value
-                if algorithm_name != "Brute Force" and estimated_n <= 9:
-                    # For small enough problems, compare with brute force
-                    try:
-                        optimal_result = brute_force_tsp(cities)
-                        if optimal_result["distance"] > 0:
-                            solution_quality = optimal_result["distance"] / max(result["distance"], 1e-10)
-                    except:
-                        pass
-                
-                budget_results["algorithms"].append({
-                    "name": algorithm_name,
-                    "cities": estimated_n,
-                    "operations": result["operations"],
-                    "measured_entropy": result["entropy"],
-                    "theoretical_entropy": theoretical_entropy,
-                    "time_used": result["time"],
-                    "complete": result["complete"],
-                    "solution_quality": solution_quality
-                })
-                
-                print(f"    Completed with {estimated_n} cities, {result['operations']} operations")
-                
-            except Exception as e:
-                print(f"    Error: {str(e)}")
-                budget_results["algorithms"].append({
-                    "name": algorithm_name,
-                    "error": str(e)
-                })
-        
-        results.append(budget_results)
-    
-    return results
+# The Combinatoric Configuration Estimator
 
-def plot_entropy_by_time(results):
-    """Plot entropy achieved within different time budgets"""
-    time_budgets = [r["time_budget"] for r in results]
+def combinatoric_factor(n, time_available):
+    """
+    Calculate a single combinatoric factor that represents the complexity-vs-time ratio
     
-    plt.figure(figsize=(14, 8))
+    Parameters:
+    - n: Number of cities
+    - time_available: Available computation time in seconds
     
-    # Set up the algorithm properties
-    algorithms = [
-        {"name": "Brute Force", "marker": "o", "color": "#ff6b6b"},
-        {"name": "Nearest Neighbor", "marker": "s", "color": "#1dd1a1"},
-        {"name": "2-Opt", "marker": "^", "color": "#5352ed"},
-        {"name": "Simulated Annealing", "marker": "D", "color": "#feca57"}
-    ]
+    Returns:
+    - combinatoric_factor: A single value between 0 and 100 that encapsulates the problem complexity
+    """
+    # Calculate factorial growth for reference
+    if n <= 12:
+        factorial_growth = math.factorial(n)
+    else:
+        # Use Stirling's approximation for large n
+        factorial_growth = math.sqrt(2 * math.pi * n) * (n / math.e)**n
     
-    # Plot measured entropy
-    plt.subplot(1, 2, 1)
-    for alg in algorithms:
-        entropies = []
-        for r in results:
-            alg_data = next((a for a in r["algorithms"] if a["name"] == alg["name"]), None)
-            if alg_data and "measured_entropy" in alg_data:
-                entropies.append(alg_data["measured_entropy"])
-            else:
-                entropies.append(None)
-        
-        valid_points = [(x, y) for x, y in zip(time_budgets, entropies) if y is not None]
-        if valid_points:
-            x_vals, y_vals = zip(*valid_points)
-            plt.plot(x_vals, y_vals, marker=alg["marker"], color=alg["color"], label=alg["name"])
+    # Calculate quadratic growth for reference
+    quadratic_growth = n * n
     
-    plt.xscale('log')
-    plt.title('Entropy Achieved Within Time Budget')
-    plt.xlabel('Computation Time (seconds, log scale)')
-    plt.ylabel('Measured Entropy (log scale)')
-    plt.grid(True)
-    plt.legend()
+    # Calculate theoretical operations possible in the given time
+    # Assume a processor can do roughly 10M operations per second
+    operations_possible = time_available * 1e7
     
-    # Plot cities solved
-    plt.subplot(1, 2, 2)
-    for alg in algorithms:
-        cities = []
-        for r in results:
-            alg_data = next((a for a in r["algorithms"] if a["name"] == alg["name"]), None)
-            if alg_data and "cities" in alg_data:
-                cities.append(alg_data["cities"])
-            else:
-                cities.append(None)
-        
-        valid_points = [(x, y) for x, y in zip(time_budgets, cities) if y is not None]
-        if valid_points:
-            x_vals, y_vals = zip(*valid_points)
-            plt.plot(x_vals, y_vals, marker=alg["marker"], color=alg["color"], label=alg["name"])
+    # Calculate the complexity ratio (how many times we can 'solve' the problem in the given time)
+    factorial_ratio = operations_possible / factorial_growth if factorial_growth > 0 else float('inf')
+    quadratic_ratio = operations_possible / quadratic_growth if quadratic_growth > 0 else float('inf')
     
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.title('Cities Solvable Within Time Budget')
-    plt.xlabel('Computation Time (seconds, log scale)')
-    plt.ylabel('Number of Cities (log scale)')
-    plt.grid(True)
-    plt.legend()
+    # Blend the ratios based on problem size
+    if n <= 10:
+        # For small problems, factorial dominates
+        complexity_ratio = factorial_ratio
+    elif n <= 20:
+        # For medium problems, blend factorial and quadratic
+        blend_factor = (n - 10) / 10  # 0 at n=10, 1 at n=20
+        complexity_ratio = (1 - blend_factor) * factorial_ratio + blend_factor * quadratic_ratio
+    else:
+        # For large problems, quadratic dominates
+        complexity_ratio = quadratic_ratio
     
-    plt.tight_layout()
-    plt.savefig('tsp_entropy_by_time.png', dpi=300)
-    plt.show()
+    # Convert to logarithmic scale and normalize to 0-100 range
+    if complexity_ratio <= 0:
+        return 0
+    elif complexity_ratio >= 1e10:
+        return 100
+    else:
+        # Log scale conversion
+        log_ratio = math.log10(complexity_ratio)
+        # Map from approximately -10 to 10 to 0 to 100
+        normalized_factor = (log_ratio + 10) * 5
+        # Clamp to 0-100 range
+        return max(0, min(100, normalized_factor))
 
-def plot_operations_vs_cities(results):
-    """Plot operations vs cities for different algorithms"""
-    plt.figure(figsize=(10, 6))
+def select_algorithm_by_factor(combinatoric_factor, n):
+    """
+    Select the best TSP algorithm based on the combinatoric factor
     
-    # Set up the algorithm properties
-    algorithms = [
-        {"name": "Brute Force", "marker": "o", "color": "#ff6b6b"},
-        {"name": "Nearest Neighbor", "marker": "s", "color": "#1dd1a1"},
-        {"name": "2-Opt", "marker": "^", "color": "#5352ed"},
-        {"name": "Simulated Annealing", "marker": "D", "color": "#feca57"}
-    ]
+    Parameters:
+    - combinatoric_factor: The single value between 0 and 100
+    - n: Number of cities (used for special cases)
     
-    for alg in algorithms:
-        cities = []
-        operations = []
-        
-        for r in results:
-            for a in r["algorithms"]:
-                if a["name"] == alg["name"] and "cities" in a and "operations" in a:
-                    cities.append(a["cities"])
-                    operations.append(a["operations"])
-        
-        if cities and operations:
-            plt.scatter(cities, operations, marker=alg["marker"], color=alg["color"], label=alg["name"], alpha=0.7)
+    Returns:
+    - algorithm_name: Name of the selected algorithm
+    - configuration: Dictionary with additional configuration parameters
+    """
+    # Special case for very small problems
+    if n <= 8 and combinatoric_factor >= 50:
+        return "Brute Force", {}
     
-    plt.yscale('log')
-    plt.title('Operations vs Cities for Different Algorithms')
-    plt.xlabel('Number of Cities')
-    plt.ylabel('Operations (log scale)')
-    plt.grid(True)
-    plt.legend()
-    
-    plt.tight_layout()
-    plt.savefig('tsp_operations_vs_cities.png', dpi=300)
-    plt.show()
+    # For most problems, use the combinatoric factor to select an algorithm
+    if combinatoric_factor < 20:
+        # Very limited computational resources compared to problem size
+        return "Nearest Neighbor", {}
+    elif combinatoric_factor < 40:
+        # Limited resources, but enough for simple improvements
+        return "Nearest Neighbor", {"multiple_starts": min(5, n // 2)}
+    elif combinatoric_factor < 60:
+        # Moderate resources
+        return "NN + Two-Opt", {"local_search_iterations": min(1000, n * n)}
+    elif combinatoric_factor < 80:
+        # Good resources
+        return "NN + Two-Opt", {"local_search_iterations": min(5000, n * n * 2)}
+    else:
+        # Abundant resources
+        return "NN + Two-Opt", {"local_search_iterations": min(10000, n * n * 5)}
 
-def plot_entropy_cartesian(results):
-    """Visualize entropy on a 2D Cartesian space with different computation times"""
-    # Create a mesh grid
-    x = np.linspace(0, 100, 40)
-    y = np.linspace(0, 100, 40)
-    X, Y = np.meshgrid(x, y)
+def solve_tsp_with_estimator(cities, time_available):
+    """
+    Solve the TSP problem using the combinatoric factor estimator
     
-    # Get data points from results
-    time_points = []
-    entropy_levels = []
+    Parameters:
+    - cities: List of (x, y) coordinates
+    - time_available: Available computation time in seconds
     
-    for r in results:
-        time_budget = r["time_budget"]
-        for alg in r["algorithms"]:
-            if "measured_entropy" in alg:
-                time_points.append((time_budget, alg["measured_entropy"], alg["name"]))
-                entropy_levels.append(alg["measured_entropy"])
+    Returns:
+    - result: Dictionary with solution details
+    """
+    n = len(cities)
+    start_time = time.time()
     
-    # Calculate entropy field - higher entropy in center, decaying outward
-    center_x, center_y = 50, 50
-    distances = np.sqrt((X - center_x)**2 + (Y - center_y)**2)
+    # Calculate the combinatoric factor
+    factor = combinatoric_factor(n, time_available)
     
-    # Create an entropy field that looks like the TSP solution space
-    entropy_field = 20 - 0.3 * distances
+    # Select algorithm based on the factor
+    algorithm_name, config = select_algorithm_by_factor(factor, n)
     
-    # Plot everything
-    plt.figure(figsize=(12, 10))
+    print(f"Problem size: {n} cities")
+    print(f"Available time: {time_available:.4f} seconds")
+    print(f"Combinatoric factor: {factor:.2f}")
+    print(f"Selected algorithm: {algorithm_name}")
+    print(f"Configuration: {config}")
     
-    # Create contour plot of the entropy field
-    contour = plt.contourf(X, Y, entropy_field, 20, cmap='plasma', alpha=0.7)
-    contour_lines = plt.contour(X, Y, entropy_field, 10, colors='white', alpha=0.5, linewidths=0.5)
-    cbar = plt.colorbar(contour, label='Entropy Value')
+    # Run the selected algorithm
+    if algorithm_name == "Brute Force":
+        result = brute_force_tsp(cities, time_limit=time_available)
     
-    # Plot the entropy time curves - curves where specific entropy values are achieved at specific times
-    # Visualize as contour lines for specific entropy values
-    for e_level in sorted(set([round(e, 1) for e in entropy_levels]))[::-1][:5]:  # Take top 5 entropy levels
-        if e_level > 0:
-            # Find where the entropy field equals this level (approximately)
-            level_contour = plt.contour(X, Y, entropy_field, levels=[e_level], 
-                                      colors=['#333333'], linewidths=2, linestyles='dashed')
-            plt.clabel(level_contour, inline=True, fontsize=9, fmt='S=%.1f' % e_level)
-    
-    # Add points for each algorithm at their achieved entropy
-    markers = {'Brute Force': 'o', 'Nearest Neighbor': 's', '2-Opt': '^', 'Simulated Annealing': 'D'}
-    colors = {'Brute Force': '#ff6b6b', 'Nearest Neighbor': '#1dd1a1', '2-Opt': '#5352ed', 'Simulated Annealing': '#feca57'}
-    
-    # Plot algorithm points arranged around the entropy contours
-    for time, entropy, alg_name in time_points:
-        if entropy > 0:
-            # Find position on the entropy contour
-            theta = 0.5 + (np.log10(time) + 3) / 6.0  # Map time to angle (0.5 to 1.5 radians)
-            r = 50 - entropy * 2  # Map entropy to radius
-            x = center_x + r * np.cos(theta * np.pi)
-            y = center_y + r * np.sin(theta * np.pi)
+    elif algorithm_name == "Nearest Neighbor":
+        if "multiple_starts" in config and config["multiple_starts"] > 1:
+            # Run NN from multiple starting points
+            best_distance = float('inf')
+            best_route = None
             
-            plt.plot(x, y, marker=markers.get(alg_name, 'o'), color=colors.get(alg_name, 'black'), 
-                    markersize=10, label=f"{alg_name} (t={time}s)")
+            # Choose starting cities
+            starting_points = random.sample(range(n), min(config["multiple_starts"], n))
+            
+            for start_city in starting_points:
+                # Run NN from this starting point
+                current = start_city
+                route = [current]
+                unvisited = set(range(n))
+                unvisited.remove(current)
+                
+                while unvisited:
+                    next_city = min(unvisited, key=lambda city: calculate_distance(cities[current], cities[city]))
+                    route.append(next_city)
+                    unvisited.remove(next_city)
+                    current = next_city
+                
+                distance = total_distance(route, cities)
+                
+                if distance < best_distance:
+                    best_distance = distance
+                    best_route = route
+            
+            result = {
+                "route": best_route,
+                "distance": best_distance,
+                "time": time.time() - start_time,
+                "algorithm": f"Nearest Neighbor (Multiple Starts: {config['multiple_starts']})"
+            }
+        else:
+            # Standard NN
+            result = nearest_neighbor_tsp(cities, time_limit=time_available)
     
-    # Deduplicate legend entries
-    handles, labels = plt.gca().get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    plt.legend(by_label.values(), by_label.keys(), loc='upper right')
+    elif algorithm_name == "NN + Two-Opt":
+        # Get NN solution
+        nn_result = nearest_neighbor_tsp(cities, time_limit=time_available / 3)
+        
+        # Calculate remaining time
+        elapsed = time.time() - start_time
+        remaining_time = max(0.001, time_available - elapsed)
+        
+        # Improve with limited 2-opt iterations
+        iterations = config.get("local_search_iterations", n * n)
+        
+        # Start with NN route
+        route = nn_result["route"]
+        best_distance = total_distance(route, cities)
+        
+        # 2-opt improvement with controlled iterations
+        improved = True
+        iteration_count = 0
+        
+        while improved and iteration_count < iterations and (time.time() - start_time <= time_available):
+            improved = False
+            
+            for i in range(1, n-1):
+                if time.time() - start_time > time_available:
+                    break
+                    
+                for j in range(i+1, n):
+                    iteration_count += 1
+                    
+                    if iteration_count > iterations or time.time() - start_time > time_available:
+                        break
+                    
+                    # Try 2-opt swap
+                    new_route = route[:i] + route[i:j+1][::-1] + route[j+1:]
+                    new_distance = total_distance(new_route, cities)
+                    
+                    if new_distance < best_distance:
+                        route = new_route
+                        best_distance = new_distance
+                        improved = True
+                        break
+                
+                if improved or time.time() - start_time > time_available:
+                    break
+        
+        result = {
+            "route": route,
+            "distance": best_distance,
+            "time": time.time() - start_time,
+            "algorithm": f"NN + Two-Opt (Iterations: {iteration_count})"
+        }
     
-    plt.title('Entropy Curves in TSP Computation Time Space')
-    plt.xlabel('X Coordinate (Entropy Landscape)')
-    plt.ylabel('Y Coordinate (Entropy Landscape)')
-    plt.grid(True, alpha=0.3)
+    else:
+        # Default to NN
+        result = nearest_neighbor_tsp(cities, time_limit=time_available)
     
-    # Add time axis explanation
-    plt.figtext(0.5, 0.02, 'Points arranged by computation time (angle) and entropy achieved (distance from center)',
-               ha='center', fontsize=12)
+    # Add the combinatoric factor to the result
+    result["combinatoric_factor"] = factor
     
-    plt.tight_layout(rect=[0, 0.03, 1, 0.97])
-    plt.savefig('tsp_entropy_cartesian_time.png', dpi=300)
+    return result
+
+def visualize_combinatoric_factor():
+    """Visualize how the combinatoric factor changes with problem size and time"""
+    problem_sizes = range(5, 101, 5)
+    time_budgets = [0.01, 0.1, 1.0, 10.0]
+    
+    # Calculate factors
+    factors = {}
+    for t in time_budgets:
+        factors[t] = [combinatoric_factor(n, t) for n in problem_sizes]
+    
+    # Plot
+    plt.figure(figsize=(12, 8))
+    for t in time_budgets:
+        plt.plot(problem_sizes, factors[t], marker='o', linewidth=2, label=f'Time Budget: {t}s')
+    
+    plt.title('Combinatoric Factor by Problem Size and Time Budget', fontsize=14)
+    plt.xlabel('Number of Cities', fontsize=12)
+    plt.ylabel('Combinatoric Factor (0-100)', fontsize=12)
+    plt.grid(True)
+    plt.legend(fontsize=10)
+    
+    # Add algorithm selection regions
+    plt.axhspan(0, 20, alpha=0.2, color='red', label='NN')
+    plt.axhspan(20, 40, alpha=0.2, color='orange', label='NN Multiple Starts')
+    plt.axhspan(40, 60, alpha=0.2, color='yellow', label='NN + Two-Opt Basic')
+    plt.axhspan(60, 80, alpha=0.2, color='green', label='NN + Two-Opt Extended')
+    plt.axhspan(80, 100, alpha=0.2, color='blue', label='NN + Two-Opt Intensive')
+    
+    plt.savefig('combinatoric_factor_chart.png', dpi=300)
     plt.show()
 
 def main():
-    print("=" * 80)
-    print("TSP ENTROPY ANALYSIS BY COMPUTATION TIME")
-    print("=" * 80)
-    print("\nThis program analyzes how different TSP algorithms perform within fixed time budgets,")
-    print("measuring the entropy they can process and the number of cities they can handle.")
+    """Main function to demonstrate the combinatoric estimator"""
+    print("TSP Combinatoric Configuration Estimator")
+    print("=" * 60)
     
-    # Run the analysis with fixed computation time budgets
-    results = analyze_by_computation_time()
+    # Visualize the combinatoric factor
+    print("\nGenerating Combinatoric Factor Visualization...")
+    visualize_combinatoric_factor()
     
-    # Print results table
-    print("\nResults Summary By Computation Time:")
-    print("-" * 100)
-    print(f"{'Time Budget':<12} {'Algorithm':<20} {'Cities':<8} {'Operations':<12} {'Measured S':<12} {'Theory S':<12} {'Complete':<10}")
-    print("-" * 100)
+    # Test with different problem sizes and time budgets
+    test_cases = [
+        (10, 0.01),  # Small problem, tiny time
+        (10, 1.0),   # Small problem, generous time
+        (20, 0.1),   # Medium problem, small time
+        (20, 2.0),   # Medium problem, generous time
+        (50, 0.1),   # Large problem, small time
+        (150, 5.0)    # Large problem, generous time
+    ]
     
-    for r in results:
-        for alg in r["algorithms"]:
-            if "cities" in alg:
-                print(f"{r['time_budget']:<12.4f} {alg['name']:<20} {alg['cities']:<8} {alg.get('operations', 'N/A'):<12} "
-                      f"{alg.get('measured_entropy', 'N/A'):<12.2f} {alg.get('theoretical_entropy', 'N/A'):<12.2f} "
-                      f"{str(alg.get('complete', 'N/A')):<10}")
-            else:
-                print(f"{r['time_budget']:<12.4f} {alg['name']:<20} {'ERROR: ' + alg.get('error', 'Unknown error')}")
+    for n, time_budget in test_cases:
+        print("\n" + "=" * 60)
+        print(f"Testing with {n} cities and {time_budget}s time budget")
+        
+        # Generate random cities
+        cities = generate_random_cities(n)
+        
+        # Solve using the estimator
+        result = solve_tsp_with_estimator(cities, time_budget)
+        
+        print(f"Solution found:")
+        print(f"  Distance: {result['distance']:.2f}")
+        print(f"  Time used: {result['time']:.4f}s")
+        print(f"  Algorithm: {result['algorithm']}")
     
-    # Generate and display visualizations
-    print("\nGenerating visualizations...")
-    
-    # 1. Plot entropy achieved within different time budgets
-    plot_entropy_by_time(results)
-    
-    # 2. Plot operations vs cities
-    plot_operations_vs_cities(results)
-    
-    # 3. Visualize entropy in Cartesian space with different computation times
-    plot_entropy_cartesian(results)
-    
-    print("\nAnalysis complete. Visualizations have been saved.")
+    print("\nEstimator test complete!")
 
 if __name__ == "__main__":
     main()
