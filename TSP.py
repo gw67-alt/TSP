@@ -534,4 +534,64 @@ def plot_entropy_cartesian(results):
             y = center_y + r * np.sin(theta * np.pi)
             
             plt.plot(x, y, marker=markers.get(alg_name, 'o'), color=colors.get(alg_name, 'black'), 
-                    markersize=10, label=
+                    markersize=10, label=f"{alg_name} (t={time}s)")
+    
+    # Deduplicate legend entries
+    handles, labels = plt.gca().get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    plt.legend(by_label.values(), by_label.keys(), loc='upper right')
+    
+    plt.title('Entropy Curves in TSP Computation Time Space')
+    plt.xlabel('X Coordinate (Entropy Landscape)')
+    plt.ylabel('Y Coordinate (Entropy Landscape)')
+    plt.grid(True, alpha=0.3)
+    
+    # Add time axis explanation
+    plt.figtext(0.5, 0.02, 'Points arranged by computation time (angle) and entropy achieved (distance from center)',
+               ha='center', fontsize=12)
+    
+    plt.tight_layout(rect=[0, 0.03, 1, 0.97])
+    plt.savefig('tsp_entropy_cartesian_time.png', dpi=300)
+    plt.show()
+
+def main():
+    print("=" * 80)
+    print("TSP ENTROPY ANALYSIS BY COMPUTATION TIME")
+    print("=" * 80)
+    print("\nThis program analyzes how different TSP algorithms perform within fixed time budgets,")
+    print("measuring the entropy they can process and the number of cities they can handle.")
+    
+    # Run the analysis with fixed computation time budgets
+    results = analyze_by_computation_time()
+    
+    # Print results table
+    print("\nResults Summary By Computation Time:")
+    print("-" * 100)
+    print(f"{'Time Budget':<12} {'Algorithm':<20} {'Cities':<8} {'Operations':<12} {'Measured S':<12} {'Theory S':<12} {'Complete':<10}")
+    print("-" * 100)
+    
+    for r in results:
+        for alg in r["algorithms"]:
+            if "cities" in alg:
+                print(f"{r['time_budget']:<12.4f} {alg['name']:<20} {alg['cities']:<8} {alg.get('operations', 'N/A'):<12} "
+                      f"{alg.get('measured_entropy', 'N/A'):<12.2f} {alg.get('theoretical_entropy', 'N/A'):<12.2f} "
+                      f"{str(alg.get('complete', 'N/A')):<10}")
+            else:
+                print(f"{r['time_budget']:<12.4f} {alg['name']:<20} {'ERROR: ' + alg.get('error', 'Unknown error')}")
+    
+    # Generate and display visualizations
+    print("\nGenerating visualizations...")
+    
+    # 1. Plot entropy achieved within different time budgets
+    plot_entropy_by_time(results)
+    
+    # 2. Plot operations vs cities
+    plot_operations_vs_cities(results)
+    
+    # 3. Visualize entropy in Cartesian space with different computation times
+    plot_entropy_cartesian(results)
+    
+    print("\nAnalysis complete. Visualizations have been saved.")
+
+if __name__ == "__main__":
+    main()
